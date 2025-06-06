@@ -323,10 +323,9 @@ def generate_certificates_api():
                     os.makedirs(os.path.dirname(output_pdf_name), exist_ok=True)
 
                     # Comando para soffice (LibreOffice)
-                    # /usr/bin/soffice é o caminho mais comum do executável do LibreOffice no Ubuntu/Debian.
-                    # Se este caminho não funcionar, tente '/usr/lib/libreoffice/program/soffice'.
+                    # Caminho ALTERNATIVO para o executável do soffice, mais provável de funcionar em contêineres.
                     soffice_command = [
-                        '/usr/bin/soffice',
+                        '/usr/lib/libreoffice/program/soffice', # <--- CAMINHO CORRIGIDO AQUI!
                         '--headless', # Executa sem interface gráfica (essencial para servidores)
                         '--convert-to', 'pdf:writer_pdf_Export', # Exporta para PDF via Writer
                         '--outdir', os.path.dirname(output_pdf_name), # Define o diretório de saída
