@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Certificados Web</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .logo-img { width: 80px; height: 80px; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0F285C; }
+        ::-webkit-scrollbar-thumb { background: #60A5FA; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: #60A5FA; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .tab-button {
+            padding: 0.5rem 1rem;
+            margin-right: 0.5rem;
+            border-radius: 0.375rem 0.375rem 0 0; /* rounded-t-md */
+            font-weight: 500; /* medium */
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .tab-button.active {
+            background-color: #0F285C; /* frame_bg_color */
+            color: #60A5FA; /* accent_color */
+            border-bottom: 2px solid #60A5FA;
+        }
+        .tab-button:not(.active) {
+            background-color: #071738; /* Um pouco mais escuro que frame_bg_color */
+            color: #E0E0E0; /* text_color */
+        }
+        .tab-button:not(.active):hover {
+            background-color: #0a1f44; /* Um pouco mais claro que #071738 */
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-[#05122F] text-[#E0E0E0] flex items-center justify-center min-h-screen p-4">
+
+    <div id="appContainer" class="w-full max-w-2xl p-6 sm:p-8 space-y-6 bg-[#05122F] rounded-xl shadow-2xl">
+        <div id="loginScreen" class="w-full max-w-md mx-auto p-8 space-y-6 bg-[#0F285C] rounded-xl shadow-inner">
+            <div class="flex flex-col items-center">
+                <img src="https://placehold.co/100x100/05122F/60A5FA?text=PMDF" alt="Logo PMDF" class="logo-img mb-4 rounded-full">
+                <h1 class="text-3xl font-bold text-center text-[#60A5FA]">Gerador de Certificados</h1>
+                <p class="text-center text-[#E0E0E0] mt-2">Acesso ao sistema</p>
+            </div>
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label for="username" class="text-sm font-medium text-[#E0E0E0] block mb-2">Usuário</label>
+                    <input type="text" id="username" name="username" required
+                           class="w-full px-4 py-3 bg-[#F5F5F5] text-[#333333] border border-transparent rounded-lg focus:ring-2 focus:ring-[#60A5FA] focus:border-transparent placeholder-gray-500"
+                           placeholder="Seu usuário">
+                </div>
+                <div>
+                    <label for="password" class="text-sm font-medium text-[#E0E0E0] block mb-2">Senha</label>
+                    <input type="password" id="password" name="password" required
+                           class="w-full px-4 py-3 bg-[#F5F5F5] text-[#333333] border border-transparent rounded-lg focus:ring-2 focus:ring-[#60A5FA] focus:border-transparent placeholder-gray-500"
+                           placeholder="Sua senha">
+                </div>
+                <button type="submit" id="loginButton"
+                        class="w-full px-4 py-3 font-semibold text-white bg-[#28A745] rounded-lg hover:bg-[#218838] focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0F285C] focus:ring-[#28A745] transition-colors duration-150 flex items-center justify-center">
+                    <span id="loginButtonText">Entrar</span>
+                    <div id="loginSpinner" class="spinner hidden ml-2"></div>
+                </button>
+            </form>
+            <p id="loginError" class="text-sm text-red-400 text-center"></p>
+        </div>
+
+        <div id="appScreen" class="hidden w-full space-y-6">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center">
+                    <img src="https://placehold.co/80x80/05122F/60A5FA?text=PMDF" alt="Logo PMDF" class="logo-img rounded-full">
+                    <h1 class="text-2xl sm:text-3xl font-bold text-[#60A5FA] ml-4">Gerador de Certificados</h1>
+                </div>
+                <div class="text-right">
+                    <p id="welcomeUser" class="text-sm text-gray-300"></p>
+                    <button id="logoutButton" class="mt-1 px-3 py-1 text-xs font-medium text-[#0F285C] bg-[#FFC107] hover:bg-[#E0A800] rounded-md focus:ring-2 focus:ring-offset-1 focus:ring-offset-[#0F285C] focus:ring-[#FFC107] transition-colors duration-150">
+                        Sair
+                    </button>
+                </div>
+            </div>
+
+            <div class="border-b border-[#2A4B8A]">
+                <nav class="-mb-px flex space-x-1" aria-label="Abas">
+                    <button id="tabGenerator" class="tab-button active" onclick="showTab('generatorContent')">Gerador</button>
+                    <button id="tabUserManagement" class="tab-button" onclick="showTab('userManagementContent')">Gerir Utilizadores</button>
+                </nav>
+            </div>
+
+            <div id="generatorContent" class="tab-content active">
+                <div class="space-y-5">
+                    <div class="p-5 bg-[#0F285C] rounded-lg shadow-inner">
+                        <label for="excelFile" class="block text-lg font-semibold text-[#E0E0E0] mb-2">1. Ficheiro Excel com Nomes (.xlsx)</label>
+                        <input type="file" id="excelFile" accept=".xlsx" class="block w-full text-sm text-[#E0E0E0] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#17A2B8] file:text-white hover:file:bg-[#138496] cursor-pointer">
+                        <p id="excelFileName" class="mt-2 text-xs text-gray-400">Nenhum ficheiro selecionado.</p>
+                    </div>
+                    <div class="p-5 bg-[#0F285C] rounded-lg shadow-inner">
+                        <label for="templateFile" class="block text-lg font-semibold text-[#E0E0E0] mb-2">2. Modelo de Certificado Word (.docx)</label>
+                        <input type="file" id="templateFile" accept=".docx" class="block w-full text-sm text-[#E0E0E0] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#17A2B8] file:text-white hover:file:bg-[#138496] cursor-pointer">
+                        <p id="templateFileName" class="mt-2 text-xs text-gray-400">Nenhum ficheiro selecionado.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                    <button id="generateButton" class="w-full px-6 py-3 text-base font-semibold text-white bg-[#28A745] rounded-lg hover:bg-[#218838] focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0F285C] focus:ring-[#28A745] transition-colors duration-150 flex items-center justify-center space-x-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2H4zm3 4a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1zm0 4a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1zm1 3a1 1 0 100 2h2a1 1 0 100-2H8z" clip-rule="evenodd" /></svg>
+                        <span id="generateButtonText">Gerar e Descarregar ZIP</span>
+                        <div id="generateSpinner" class="spinner hidden ml-2"></div>
+                    </button>
+                    <button id="previewButton" disabled class="opacity-50 cursor-not-allowed w-full px-6 py-3 text-base font-semibold text-white bg-[#6f42c1] rounded-lg hover:bg-[#5a2aa0] focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0F285C] focus:ring-[#6f42c1] transition-colors duration-150 flex items-center justify-center space-x-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg>
+                        <span>Visualizar (Em breve)</span>
+                    </button>
+                </div>
+                <div id="progressSection" class="pt-5 space-y-2 hidden">
+                    <div class="w-full bg-[#2A4B8A] rounded-full h-2.5">
+                        <div id="progressBar" class="bg-[#60A5FA] h-2.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                    </div>
+                    <p id="statusMessage" class="text-sm text-center text-[#E0E0E0]">Aguardando ação...</p>
+                </div>
+                <div id="downloadSection" class="pt-5 space-y-3 hidden">
+                    <h3 class="text-lg font-semibold text-[#60A5FA]">Download:</h3>
+                    <div id="downloadLinks" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <div id="userManagementContent" class="tab-content bg-[#0F285C] p-5 rounded-lg shadow-inner">
+                <h2 class="text-xl font-semibold text-[#60A5FA] mb-4">Gestão de Utilizadores</h2>
+                <form id="createUserForm" class="space-y-4 mb-6 p-4 bg-[#071738] rounded-md">
+                    <h3 class="text-lg font-medium text-white">Criar Novo Utilizador</h3>
+                    <div>
+                        <label for="newUsername" class="text-sm font-medium text-[#E0E0E0] block mb-1">Nome de Utilizador:</label>
+                        <input type="text" id="newUsername" required class="w-full px-3 py-2 bg-[#F5F5F5] text-[#333333] rounded-md focus:ring-2 focus:ring-[#60A5FA]">
+                    </div>
+                    <div>
+                        <label for="newPassword" class="text-sm font-medium text-[#E0E0E0] block mb-1">Senha:</label>
+                        <input type="password" id="newPassword" required class="w-full px-3 py-2 bg-[#F5F5F5] text-[#333333] rounded-md focus:ring-2 focus:ring-[#60A5FA]">
+                    </div>
+                    <div>
+                        <label for="newRole" class="text-sm font-medium text-[#E0E0E0] block mb-1">Papel (role):</label>
+                        <select id="newRole" class="w-full px-3 py-2 bg-[#F5F5F5] text-[#333333] rounded-md focus:ring-2 focus:ring-[#60A5FA]">
+                            <option value="user" selected>Utilizador (user)</option>
+                            <option value="admin">Administrador (admin)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="px-4 py-2 bg-[#17A2B8] text-white font-semibold rounded-md hover:bg-[#138496]">Criar Utilizador</button>
+                </form>
+                <p id="createUserStatus" class="text-sm mb-4"></p>
+
+                <h3 class="text-lg font-medium text-white mb-2">Utilizadores Existentes</h3>
+                <div id="userList" class="space-y-1 text-sm text-gray-300 max-h-40 overflow-y-auto">
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const loginScreen = document.getElementById('loginScreen');
+    const appScreen = document.getElementById('appScreen');
+    const loginForm = document.getElementById('loginForm');
+    const loginButton = document.getElementById('loginButton');
+    const loginButtonText = document.getElementById('loginButtonText');
+    const loginSpinner = document.getElementById('loginSpinner');
+    const loginError = document.getElementById('loginError');
+    const welcomeUser = document.getElementById('welcomeUser');
+
+    const excelFileInput = document.getElementById('excelFile');
+    const templateFileInput = document.getElementById('templateFile');
+    const excelFileName = document.getElementById('excelFileName');
+    const templateFileName = document.getElementById('templateFileName');
+
+    const generateButton = document.getElementById('generateButton');
+    const generateButtonText = document.getElementById('generateButtonText');
+    const generateSpinner = document.getElementById('generateSpinner');
+    const logoutButton = document.getElementById('logoutButton');
+
+    const progressSection = document.getElementById('progressSection');
+    const progressBar = document.getElementById('progressBar');
+    const statusMessage = document.getElementById('statusMessage');
+
+    const downloadSection = document.getElementById('downloadSection');
+    const downloadLinks = document.getElementById('downloadLinks');
+
+    const tabGenerator = document.getElementById('tabGenerator');
+    const tabUserManagement = document.getElementById('tabUserManagement');
+    const generatorContent = document.getElementById('generatorContent');
+    const userManagementContent = document.getElementById('userManagementContent');
+    const createUserForm = document.getElementById('createUserForm');
+    const createUserStatus = document.getElementById('createUserStatus');
+    const userListDiv = document.getElementById('userList');
+
+    const BACKEND_URL = window.location.origin;
+
+    // Variáveis globais para o estado de autenticação
+    let userToken = null; // Armazenará o username para usar como "token"
+    let loggedInUser = null;
+    let loggedInUserRole = 'user'; // Padrão 'user'
+
+    // Função para exibir/ocultar abas
+    function showTab(tabId) {
+        // Remove a classe 'active' de todos os botões de aba e conteúdos
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        // Adiciona a classe 'active' ao botão e conteúdo da aba clicada
+        document.getElementById(`tab${tabId.charAt(0).toUpperCase() + tabId.slice(1).replace('Content', '')}`).classList.add('active');
+        document.getElementById(tabId).classList.add('active');
+
+        // Lógica específica para a aba de Gerenciamento de Usuários
+        if (tabId === 'userManagementContent') {
+            fetchUsers(); // Sempre tenta buscar usuários ao entrar na aba
+            // Só mostra o formulário de criação se o usuário logado for 'admin'
+            createUserForm.style.display = loggedInUserRole === 'admin' ? 'block' : 'none';
+        }
+    }
+
+    // Adiciona event listeners para os botões das abas
+    tabGenerator.addEventListener('click', () => showTab('generatorContent'));
+    tabUserManagement.addEventListener('click', () => showTab('userManagementContent'));
+
+    // Event Listener para o formulário de Login
+    loginForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        loginError.textContent = ''; // Limpa mensagens de erro anteriores
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        loginButtonText.classList.add('hidden');
+        loginSpinner.classList.remove('hidden');
+        loginButton.disabled = true; // Desabilita o botão para evitar cliques múltiplos
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            // Lendo a resposta como texto primeiro para depuração robusta
+            const responseText = await response.text();
+            console.log("DEBUG JS (login): Texto da resposta:", responseText);
+
+            let data;
+            try {
+                data = JSON.parse(responseText); // Tenta analisar como JSON
+            } catch (jsonError) {
+                console.error("DEBUG JS (login): Erro ao analisar JSON:", jsonError);
+                throw new Error("Resposta inválida do servidor. Verifique o formato JSON.");
+            }
+
+            console.log("DEBUG JS (login): Dados da resposta analisados:", data);
+
+            if (response.ok) { // response.ok é true para status 200-299
+                userToken = data.token; // Armazena o username como token
+                loggedInUser = data.user;
+                loggedInUserRole = data.role || 'user'; // Garante que a role seja 'user' se não for definida
+
+                // Esconde a tela de login e mostra a tela principal
+                loginScreen.classList.add('hidden');
+                appScreen.classList.remove('hidden');
+                welcomeUser.textContent = `Bem-vindo, ${loggedInUser}! (Papel: ${loggedInUserRole})`;
+
+                resetAppUI(); // Reseta os campos do gerador
+                showTab('generatorContent'); // Mostra a aba Gerador por padrão após o login
+            } else {
+                loginError.textContent = data.error || 'Falha no login. Verifique usuário e senha.';
+                console.error("DEBUG JS (login): Falha no login, data do erro:", data);
+            }
+        } catch (error) {
+            console.error("DEBUG JS (login): Erro no bloco catch do login:", error);
+            loginError.textContent = `Erro ao tentar fazer login: ${error.message}. Verifique o console.`;
+        } finally {
+            // Sempre reabilita o botão e esconde o spinner
+            loginButtonText.classList.remove('hidden');
+            loginSpinner.classList.add('hidden');
+            loginButton.disabled = false;
+        }
+    });
+
+    // Event Listener para o botão de Logout
+    logoutButton.addEventListener('click', async () => {
+        // Limpa as variáveis de estado de autenticação
+        userToken = null;
+        loggedInUser = null;
+        loggedInUserRole = 'user';
+
+        // Esconde a tela principal e mostra a tela de login
+        appScreen.classList.add('hidden');
+        loginScreen.classList.remove('hidden');
+        loginForm.reset(); // Limpa os campos do formulário de login
+        loginError.textContent = ''; // Limpa qualquer erro de login anterior
+        statusMessage.textContent = 'Aguardando ação...'; // Reseta mensagem de status
+        welcomeUser.textContent = ''; // Limpa a mensagem de boas-vindas
+    });
+
+    // Event Listeners para exibir o nome do arquivo selecionado
+    excelFileInput.addEventListener('change', function() {
+        excelFileName.textContent = this.files.length > 0 ? this.files[0].name : 'Nenhum ficheiro selecionado.';
+    });
+    templateFileInput.addEventListener('change', function() {
+        templateFileName.textContent = this.files.length > 0 ? this.files[0].name : 'Nenhum ficheiro selecionado.';
+    });
+
+    // Função para resetar a UI da aplicação principal (gerador)
+    function resetAppUI() {
+        excelFileInput.value = ''; // Limpa o arquivo selecionado
+        templateFileInput.value = ''; // Limpa o arquivo selecionado
+        excelFileName.textContent = 'Nenhum ficheiro selecionado.';
+        templateFileName.textContent = 'Nenhum ficheiro selecionado.';
+        progressSection.classList.add('hidden'); // Esconde a barra de progresso
+        progressBar.style.width = '0%'; // Reseta o progresso
+        downloadSection.classList.add('hidden'); // Esconde a seção de download
+        downloadLinks.innerHTML = ''; // Limpa links de download anteriores
+        statusMessage.textContent = 'Aguardando ação...'; // Reseta mensagem de status
+    }
+
+    // Event Listener para o botão de Gerar Certificados
+    generateButton.addEventListener('click', async () => {
+        // Verifica se o usuário está logado (estado do frontend)
+        if (!userToken) {
+            messagebox_show("Não Autenticado", "Por favor, faça login para gerar certificados.", "error");
+            return;
+        }
+        // Verifica se os arquivos foram selecionados
+        if (!excelFileInput.files.length || !templateFileInput.files.length) {
+            messagebox_show("Seleção Incompleta", "Por favor, selecione o ficheiro Excel e o modelo Word.", "warning");
+            return;
+        }
+
+        // Prepara a UI para o processamento
+        progressSection.classList.remove('hidden');
+        downloadSection.classList.add('hidden');
+        downloadLinks.innerHTML = '';
+        progressBar.style.width = '0%';
+        statusMessage.textContent = 'A enviar arquivos para o servidor...';
+        generateButtonText.classList.add('hidden');
+        generateSpinner.classList.remove('hidden');
+        generateButton.disabled = true; // Desabilita o botão durante o processamento
+
+        const formData = new FormData();
+        formData.append('excelFile', excelFileInput.files[0]);
+        formData.append('templateFile', templateFileInput.files[0]);
+
+        try {
+            progressBar.style.width = '20%';
+            statusMessage.textContent = 'Arquivos enviados. A processar no servidor...';
+
+            const response = await fetch(`${BACKEND_URL}/generate_certificates_api`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${userToken}` // ENVIANDO O TOKEN AQUI!
+                },
+                body: formData
+            });
+
+            progressBar.style.width = '70%';
+            const result = await response.json();
+            console.log("DEBUG JS (generate): Resultado do backend:", JSON.stringify(result, null, 2));
+
+            if (!response.ok) {
+                // Se a resposta não for OK (ex: 401, 500), lança um erro
+                throw new Error(result.error || `Erro do servidor: ${response.status} - ${response.statusText}`);
+            }
+
+            progressBar.style.width = '100%';
+            statusMessage.textContent = result.message || 'Processamento concluído!';
+
+            if (result && result.zip_file_path) {
+                displayZipDownloadLink(result.zip_file_path);
+            } else {
+                downloadSection.classList.add('hidden');
+                let alertMessage = "Caminho para o ficheiro ZIP não recebido do servidor.";
+                if (result && result.message && !result.error) { alertMessage += `\nMensagem do servidor: ${result.message}`; }
+                if (result && result.error) { alertMessage = `Erro do Servidor: ${result.error}`; }
+                messagebox_show("Falha ao Obter Link de Download", alertMessage, "error");
+            }
+
+        } catch (error) {
+            console.error('Erro ao gerar certificados:', error);
+            statusMessage.textContent = `Erro: ${error.message}`;
+            messagebox_show("Erro na Geração", `Falha ao comunicar com o servidor ou processar os arquivos: ${error.message}`, "error");
+            progressBar.style.width = '0%'; // Reseta a barra em caso de erro
+        } finally {
+            // Sempre reabilita o botão e esconde o spinner
+            generateButtonText.classList.remove('hidden');
+            generateSpinner.classList.add('hidden');
+            generateButton.disabled = false;
+        }
+    });
+
+    // Função para exibir o link de download do ZIP
+    function displayZipDownloadLink(zipFilePath) {
+        downloadSection.classList.remove('hidden');
+        downloadLinks.innerHTML = ''; // Limpa links anteriores
+
+        const linkElement = document.createElement('button');
+        linkElement.textContent = `Descarregar ${os_path_basename(zipFilePath)}`;
+        linkElement.className = `block w-full text-xl text-white hover:bg-blue-600 bg-blue-500 font-bold p-3 rounded-lg text-center cursor-pointer`;
+
+        linkElement.onclick = async function() {
+            messagebox_show("Download", "A iniciar descarga do ficheiro ZIP...", "info");
+            try {
+                const response = await fetch(`${BACKEND_URL}/download_generated_file/${zipFilePath}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${userToken}` // ENVIANDO O TOKEN AQUI!
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: "Erro ao descarregar ficheiro."}));
+                    throw new Error(errorData.error || `Erro ${response.status} ao descarregar ficheiro.`);
+                }
+
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = downloadUrl;
+                a.download = os_path_basename(zipFilePath);
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                a.remove();
+                messagebox_show("Sucesso", "Download do ZIP iniciado!", "info");
+
+            } catch (error) {
+                console.error("Erro ao descarregar o ZIP:", error);
+                messagebox_show("Erro de Download", `Falha ao descarregar o ficheiro ZIP: ${error.message}`, "error");
+            }
+        };
+        downloadLinks.appendChild(linkElement);
+    }
+
+    // Função para buscar e exibir a lista de usuários
+    async function fetchUsers() {
+        userListDiv.innerHTML = 'Carregando utilizadores...';
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/users`, {
+                headers: {
+                    'Authorization': `Bearer ${userToken}` // ENVIANDO O TOKEN AQUI!
+                }
+            });
+
+            if (!response.ok) {
+                 const errorData = await response.json().catch(() => ({ error: "Erro ao buscar utilizadores."}));
+                 throw new Error(errorData.error || "Falha ao buscar utilizadores.");
+            }
+
+            const users = await response.json();
+            userListDiv.innerHTML = '';
+            if (users.length === 0) {
+                userListDiv.textContent = "Nenhum utilizador registado.";
+                return;
+            }
+            const ul = document.createElement('ul');
+            ul.className = "list-disc list-inside";
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.textContent = `${user.username} (Papel: ${user.role || 'user'})`;
+                ul.appendChild(li);
+            });
+            userListDiv.appendChild(ul);
+        } catch (error) {
+            console.error("Erro ao buscar utilizadores:", error);
+            userListDiv.innerHTML = `<p class="text-red-400">Erro ao carregar utilizadores: ${error.message}</p>`;
+        }
+    }
+
+    // Event Listener para o formulário de Criação de Usuário
+    createUserForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const newUsername = document.getElementById('newUsername').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const newRole = document.getElementById('newRole').value;
+        createUserStatus.textContent = '';
+        createUserStatus.className = 'text-sm mb-4';
+
+        if (!newUsername || !newPassword) {
+            createUserStatus.textContent = "Nome de utilizador e senha são obrigatórios.";
+            createUserStatus.classList.add('text-red-400');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/users/create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}` // ENVIANDO O TOKEN AQUI!
+                },
+                body: JSON.stringify({ username: newUsername, password: newPassword, role: newRole })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                createUserStatus.textContent = data.message;
+                createUserStatus.classList.add('text-green-400');
+                createUserForm.reset();
+                fetchUsers(); // Atualiza a lista após a criação
+            } else {
+                createUserStatus.textContent = data.error || "Erro ao criar utilizador.";
+                createUserStatus.classList.add('text-red-400');
+            }
+        } catch (error) {
+            console.error("Erro ao criar utilizador:", error);
+            createUserStatus.textContent = "Erro de comunicação ao criar utilizador.";
+            createUserStatus.classList.add('text-red-400');
+        }
+    });
+
+    // Função auxiliar para extrair o nome base do caminho (como os.path.basename do Python)
+    function os_path_basename(path) {
+        if (!path) return "";
+        return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+    // Função para exibir mensagens de status/erro personalizadas
+    function messagebox_show(title, message, type = "info") {
+        console.warn(`MessageBox (${type}): ${title} - ${message}`);
+        let statusClass = "text-blue-300";
+        let bgColorClass = "border-blue-600 bg-blue-900/70 text-blue-200";
+        if (type === "warning") {
+            statusClass = "text-yellow-300";
+            bgColorClass = "border-yellow-600 bg-yellow-900/70 text-yellow-200";
+        }
+        if (type === "error") {
+            statusClass = "text-red-400";
+            bgColorClass = "border-red-600 bg-red-900/70 text-red-200";
+        }
+
+        const tempStatusDiv = document.createElement('div');
+        tempStatusDiv.innerHTML = `<span class="${statusClass} font-semibold">${title}:</span> <span class="${statusClass}">${message}</span>`;
+        tempStatusDiv.className = `p-3 my-2 border rounded-md text-sm ${bgColorClass}`;
+
+        const mainAppScreenDiv = document.getElementById('appContainer');
+        // Define o nó de referência para inserir a mensagem
+        let referenceNode;
+        if (appScreen.classList.contains('hidden')) { // Se estiver na tela de login
+            referenceNode = loginScreen.querySelector('form');
+        } else if (userManagementContent.classList.contains('active')) { // Se estiver na aba de gestão de usuários
+            referenceNode = createUserForm; // Insere acima do formulário de criação
+        } else { // Se estiver na aba de gerador
+            referenceNode = progressSection; // Insere acima da seção de progresso
+        }
+
+        if (referenceNode && referenceNode.parentNode) {
+            referenceNode.parentNode.insertBefore(tempStatusDiv, referenceNode);
+        } else {
+            // Fallback: insere no topo do container principal se o nó de referência não for encontrado
+            mainAppScreenDiv.insertBefore(tempStatusDiv, mainAppScreenDiv.firstChild);
+        }
+        // Remove a mensagem após 7 segundos
+        setTimeout(() => { tempStatusDiv.remove(); }, 7000);
+    }
+
+    // Inicializa a UI na tela de login
+    loginScreen.classList.remove('hidden');
+    appScreen.classList.add('hidden');
+    // Não chama showTab('generatorContent') aqui, pois ele será chamado após o login bem-sucedido
+</script>
+</body>
+</html>

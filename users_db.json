@@ -1,0 +1,15 @@
+{
+    "admin": {
+        "password_hash": "47f874ffa4433270a29f725883aa0d18bff02b53dd44f693f73feae824dad20e",
+        "role": "admin",
+        "secure_code": "1234"
+    },
+    "danilo": {
+        "password_hash": "387944385268b8478f9aba8afb0d20587270e308f44a7c8db6c0c9cb845c8aa7",
+        "role": "admin"
+    },
+    "cibele": {
+        "password_hash": "ad941ea14d319ce5139aac481600305ac57c80bd37d8e12e4296e9934fe309f5",
+        "role": "user"
+    }
+}
