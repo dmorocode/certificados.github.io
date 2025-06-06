@@ -2,7 +2,7 @@
 # Use uma imagem base Python oficial
 FROM python:3.9-slim-buster
 
-# Variáveis de ambiente (mantidas, podem ser úteis para outros aspectos)
+# Variáveis de ambiente
 ENV HOME=/tmp \
     XDG_CONFIG_HOME=/tmp/.config \
     XDG_DATA_HOME=/tmp/.local/share \
@@ -11,20 +11,28 @@ ENV HOME=/tmp \
     SAL_USE_VCLPLUGIN=gen \
     NO_LOG_REDIRECT=1
 
-# Instala Pandoc e um ambiente LaTeX minimalista (xelatex) para conversão de DOCX para PDF.
-# 'texlive-xetex' fornece o motor xelatex, que Pandoc usa para gerar PDFs de alta qualidade.
-# 'texlive-fonts-recommended' para fontes básicas.
-# 'libxtst6', 'libxrender1': dependências comuns para ambientes headless que podem precisar de X (mesmo que virtual).
-# 'locales': para evitar erros de locale.
+# Instala Pandoc e um ambiente LaTeX mais completo para garantir 'xelatex'.
+# Vamos tentar 'texlive-full' primeiro para garantir todas as dependências, mas esteja ciente que é GRANDE.
+# Se 'texlive-full' resultar em uma imagem muito grande ou tempo de build excessivo,
+# a alternativa seria: texlive-latex-extra texlive-fonts-extra texlive-pictures
+# e verificar dependências como imagemagick, ghostscript, poppler-utils
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         pandoc \
-        texlive-xetex \
-        texlive-fonts-recommended \
-        libxtst6 \
-        libxrender1 \
+        # Opção 1: Texlive-full (Garanti o xelatex, mas é muito grande)
+        texlive-full \
+        # --- OU ---
+        # Opção 2: Pacotes mais específicos (se texlive-full for um problema)
+        # texlive-xetex \
+        # texlive-fonts-recommended \
+        # texlive-latex-extra \
+        # texlive-fonts-extra \
+        # gsfonts \ # Common PostScript fonts
+        # fontconfig \ # Já tinha, mas é importante
+        # libxtst6 \
+        # libxrender1 \
         unzip \
-        fontconfig \
+        # fontconfig \ # Já incluído em outras instalações
         locales \
     && rm -rf /var/lib/apt/lists/*
 
