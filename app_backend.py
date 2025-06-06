@@ -1,6 +1,7 @@
 import pandas as pd
 from docx import Document
-from docx2pdf import convert
+# Remova esta linha se ainda estiver aqui no seu arquivo:
+# from docx2pdf import convert
 from PyPDF2 import PdfMerger
 import os
 import re
@@ -14,7 +15,8 @@ import time
 import zipfile
 import json
 import hashlib
-from functools import wraps # Vamos precisar novamente para os decorators
+from functools import wraps
+import subprocess # Módulo para rodar comandos externos como soffice
 
 app = Flask(__name__, template_folder='templates')
 CORS(app,
@@ -22,36 +24,31 @@ CORS(app,
      origins=["http://127.0.0.1:5000", "http://localhost:5000"]
 )
 
+# --- Configurações de Pastas ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'temp_uploads_web')
 GENERATED_CERTIFICATES_FOLDER = os.path.join(BASE_DIR, 'generated_certificates_web')
-USERS_DB_PATH = os.path.join(BASE_DIR, 'users_db.json') # Caminho para o arquivo da base de dados de usuários
+USERS_DB_PATH = os.path.join(BASE_DIR, 'users_db.json')
 
-# Garante que as pastas existam
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(GENERATED_CERTIFICATES_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['GENERATED_CERTIFICATES_FOLDER'] = GENERATED_CERTIFICATES_FOLDER
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=60) # Tempo de vida da sessão (ex: para tokens)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=60)
 
-# --- Base de Dados de Utilizadores (Persistida em JSON com Senhas HASHED) ---
 def load_users_db():
-    """Carrega a base de dados de usuários do arquivo JSON."""
     if os.path.exists(USERS_DB_PATH):
         with open(USERS_DB_PATH, 'r') as f:
             return json.load(f)
     return {}
 
 def save_users_db(db):
-    """Salva a base de dados de usuários no arquivo JSON."""
     with open(USERS_DB_PATH, 'w') as f:
         json.dump(db, f, indent=4)
 
-# Carrega o DB ao iniciar a aplicação
 users_db = load_users_db()
 
-# Adiciona o usuário 'danilo' padrão se o DB estiver vazio ou 'danilo' não existir
 if "danilo" not in users_db:
     danilo_password_hash = hashlib.sha256("@danilo30!".encode('utf-8')).hexdigest()
     users_db["danilo"] = {
@@ -61,11 +58,7 @@ if "danilo" not in users_db:
     save_users_db(users_db)
     print("INFO: Usuário 'danilo' (admin) padrão criado/verificado com senha '@danilo30!' (hashed).")
 
-# ---------------------------------------------------------------------
-
-# --- Decoradores de Autenticação e Autorização ---
 def require_auth(f):
-    """Decorator para exigir autenticação baseada em token simples (simulado)."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
@@ -75,11 +68,9 @@ def require_auth(f):
 
         token = auth_header.split(' ')[1]
 
-        # Para fins desta simulação, o token é o próprio username.
-        # Em um cenário real, você usaria JWTs ou sessions.
         if token in users_db:
-            request.current_user = token # Adiciona o usuário autenticado ao objeto request
-            request.current_user_role = users_db[token].get("role", "user") # Adiciona a role
+            request.current_user = token
+            request.current_user_role = users_db[token].get("role", "user")
             return f(*args, **kwargs)
         else:
             print(f"INFO: Autenticação falhou: Token '{token}' inválido.")
@@ -87,7 +78,6 @@ def require_auth(f):
     return decorated_function
 
 def require_role(role):
-    """Decorator para exigir uma role específica."""
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -103,19 +93,11 @@ def require_role(role):
         return decorated_function
     return decorator
 
-# --- Rotas da Aplicação ---
 @app.route('/')
 def index():
-    """Renderiza a página principal do gerador."""
     return render_template('gerador_web.html')
 
-# --- Funções de Processamento de Documentos (mantidas as mesmas) ---
 def process_document_tags(document_obj, data_row):
-    """
-    Processa as tags de substituição em um documento Word.
-    Substitui tags no formato {TAG} pelos valores correspondentes na data_row.
-    Mantém a formatação original do parágrafo/run.
-    """
     for paragraph in document_obj.paragraphs:
         full_paragraph_text = paragraph.text
         if '{' in full_paragraph_text and '}' in full_paragraph_text:
@@ -136,10 +118,6 @@ def process_document_tags(document_obj, data_row):
                             apply_formatting_runs(paragraph_in_cell, original_runs_cell, replaced_cell_text)
 
 def replace_all_tags_in_text(text_content, data_row_normalized):
-    """
-    Encontra e substitui todas as tags {TAG} em um texto.
-    Normaliza os nomes das tags para buscar na data_row (minúsculas, sem espaços extras).
-    """
     tags_found_in_word = re.findall(r'\{(.*?)\}', text_content)
     for tag_content in tags_found_in_word:
         normalized_tag_from_word = tag_content.strip().lower()
@@ -148,9 +126,6 @@ def replace_all_tags_in_text(text_content, data_row_normalized):
     return text_content
 
 def apply_formatting_runs(paragraph, original_runs, replaced_text):
-    """
-    Aplica a formatação do primeiro run original a um novo run que contém o texto substituído.
-    """
     paragraph.clear()
     if original_runs:
         first_run_original = original_runs[0]
@@ -168,7 +143,6 @@ def apply_formatting_runs(paragraph, original_runs, replaced_text):
         paragraph.add_run(replaced_text)
 
 def create_zip_from_folder(folder_path, zip_path):
-    """Cria um arquivo ZIP a partir do conteúdo de uma pasta."""
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(folder_path):
             for file_item in files:
@@ -177,26 +151,22 @@ def create_zip_from_folder(folder_path, zip_path):
                 zipf.write(file_path_item, archive_name)
     print(f"INFO: Ficheiro ZIP criado em: {zip_path}")
 
-# --- Endpoints de Gestão de Utilizadores ---
 @app.route('/api/users', methods=['GET'])
 @require_auth
-@require_role('admin') # Apenas admins podem ver a lista de usuários
+@require_role('admin')
 def get_users_api():
-    """Retorna a lista de usuários (sem senhas)."""
     user_list = []
     for user, data in users_db.items():
         user_list.append({
             "username": user,
             "role": data.get("role", "user")
-            # NUNCA retornar password_hash aqui!
         })
     return jsonify(user_list), 200
 
 @app.route('/api/users/create', methods=['POST'])
 @require_auth
-@require_role('admin') # Apenas admins podem criar usuários
+@require_role('admin')
 def create_user_api():
-    """Cria um novo usuário no sistema."""
     data = request.get_json()
     if not data or not data.get('username') or not data.get('password'):
         return jsonify({"error": "Nome de utilizador e senha são obrigatórios."}), 400
@@ -213,24 +183,18 @@ def create_user_api():
     if username in users_db:
         return jsonify({"error": f"Utilizador '{username}' já existe."}), 409
 
-    # Hash da senha antes de armazenar
     password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
 
     users_db[username] = {
         "password_hash": password_hash,
         "role": role
     }
-    save_users_db(users_db) # Salva as alterações no arquivo
+    save_users_db(users_db)
     print(f"INFO: Utilizador '{username}' (role: {role}) criado (em memória e persistido).")
     return jsonify({"message": f"Utilizador '{username}' criado com sucesso.", "username": username, "role": role}), 201
 
-# --- Endpoint de Login ---
 @app.route('/api/login', methods=['POST'])
 def login_api():
-    """
-    Endpoint de login. Autentica o usuário e retorna um "token" (neste caso, o username
-    como token).
-    """
     data = request.get_json()
     if not data or not data.get('username') or not data.get('password'):
         return jsonify({"error": "Nome de utilizador e senha são obrigatórios."}), 400
@@ -241,7 +205,6 @@ def login_api():
     user_data = users_db.get(username)
 
     if user_data:
-        # Verifica a senha hashed
         input_password_hash = hashlib.sha256(password_input.encode('utf-8')).hexdigest()
         if user_data['password_hash'] == input_password_hash:
             print(f"INFO: Tentativa de login bem-sucedida para '{username}'.")
@@ -249,19 +212,15 @@ def login_api():
                 message="Login bem-sucedido.",
                 user=username,
                 role=user_data.get("role", "user"),
-                token=username # Token simulado
+                token=username
             ), 200
 
     print(f"INFO: Tentativa de login falhada para o utilizador '{username}'.")
     return jsonify({"error": "Nome de utilizador ou senha inválidos."}), 401
 
-# --- Endpoint Principal de Geração de Certificados ---
 @app.route('/generate_certificates_api', methods=['POST'])
-@require_auth # Este endpoint agora requer autenticação (qualquer usuário logado)
+@require_auth
 def generate_certificates_api():
-    """
-    Gera certificados em PDF a partir de um arquivo Excel e um template Word.
-    """
     print(f"INFO: Endpoint /generate_certificates_api acedido por '{request.current_user}'.")
 
     if 'excelFile' not in request.files or 'templateFile' not in request.files:
@@ -273,7 +232,7 @@ def generate_certificates_api():
     if excel_file.filename == '' or template_file.filename == '':
         return jsonify({"error": "Nomes de arquivo não podem ser vazios."}), 400
 
-    request_id_suffix = request.current_user # Usa o nome de usuário autenticado
+    request_id_suffix = request.current_user
     request_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f") + f"_{request_id_suffix}"
 
     current_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], request_id)
@@ -282,7 +241,6 @@ def generate_certificates_api():
     individual_docx_staging_folder = os.path.join(zip_staging_folder, "WORDs_Individuais")
     individual_pdf_staging_folder = os.path.join(zip_staging_folder, "PDFs_Individuais")
 
-    # Garante que todas as pastas de trabalho existam
     os.makedirs(current_upload_folder, exist_ok=True)
     os.makedirs(session_output_path, exist_ok=True)
     os.makedirs(zip_staging_folder, exist_ok=True)
@@ -308,7 +266,7 @@ def generate_certificates_api():
     except Exception as e:
         traceback.print_exc()
         shutil.rmtree(current_upload_folder, ignore_errors=True)
-        shutil.rmtree(session_output_path, ignore_errors=True) # Limpa pastas vazias se houver erro no Excel
+        shutil.rmtree(session_output_path, ignore_errors=True)
         return jsonify({"error": f"Erro ao ler arquivo Excel. Verifique o formato do arquivo: {e}"}), 500
 
     total_participants_overall = df.apply(lambda x: x.dropna().count()).sum()
@@ -357,15 +315,62 @@ def generate_certificates_api():
                 doc.save(output_docx_name)
                 time.sleep(0.1)
 
+                # --- Início do Bloco de Conversão DOCX para PDF (soffice diretamente) ---
                 try:
-                    convert(output_docx_name, output_pdf_name)
+                    print(f"INFO: Tentando converter {output_docx_name} para {output_pdf_name} usando soffice (LibreOffice).")
+
+                    # Garante que o diretório de saída para o PDF exista antes de chamar soffice
+                    os.makedirs(os.path.dirname(output_pdf_name), exist_ok=True)
+
+                    # Comando para soffice (LibreOffice)
+                    # /usr/bin/soffice é o caminho mais comum do executável do LibreOffice no Ubuntu/Debian.
+                    # Se este caminho não funcionar, tente '/usr/lib/libreoffice/program/soffice'.
+                    soffice_command = [
+                        '/usr/bin/soffice',
+                        '--headless', # Executa sem interface gráfica (essencial para servidores)
+                        '--convert-to', 'pdf:writer_pdf_Export', # Exporta para PDF via Writer
+                        '--outdir', os.path.dirname(output_pdf_name), # Define o diretório de saída
+                        output_docx_name # O arquivo de entrada DOCX
+                    ]
+                    print(f"INFO: Comando soffice: {' '.join(soffice_command)}")
+
+                    result = subprocess.run(
+                        soffice_command,
+                        check=True, # Lança CalledProcessError se o comando falhar
+                        capture_output=True, # Captura stdout e stderr
+                        text=True, # Decodifica a saída como texto
+                        timeout=120 # Aumenta o timeout para 120 segundos para conversões mais longas
+                    )
+                    print(f"INFO: soffice STDOUT para {participant_name}: {result.stdout}")
+                    print(f"INFO: soffice STDERR para {participant_name}: {result.stderr}")
+
                     time.sleep(0.05)
                     if os.path.exists(output_pdf_name):
                         pdfs_for_this_column_merger_paths.append(output_pdf_name)
-                except Exception as pdf_conversion_error:
-                    print(f"ERRO conversão PDF para {participant_name}: {pdf_conversion_error}")
+                        print(f"SUCESSO: PDF gerado para {participant_name} em {output_pdf_name}")
+                    else:
+                        error_details = f"soffice falhou em criar o PDF em {output_pdf_name}."
+                        if result.stdout: error_details += f"\nSTDOUT: {result.stdout}"
+                        if result.stderr: error_details += f"\nSTDERR: {result.stderr}"
+                        raise Exception(error_details)
+
+                except subprocess.CalledProcessError as sub_error:
+                    error_msg = f"ERRO soffice para {participant_name}: Comando falhou com código {sub_error.returncode}."
+                    error_msg += f"\nSTDOUT: {sub_error.stdout}"
+                    error_msg += f"\nSTDERR: {sub_error.stderr}"
+                    print(error_msg)
                     traceback.print_exc()
                     any_processing_errors = True
+                except subprocess.TimeoutExpired:
+                    print(f"ERRO: Conversão de PDF para {participant_name} excedeu o tempo limite de 120 segundos.")
+                    any_processing_errors = True
+                except Exception as pdf_conversion_error:
+                    # Captura qualquer outro erro que não seja de subprocesso ou timeout
+                    print(f"ERRO geral na conversão PDF para {participant_name}: {pdf_conversion_error}")
+                    traceback.print_exc()
+                    any_processing_errors = True
+                # --- Fim do Bloco de Conversão DOCX para PDF (soffice diretamente) ---
+
             except Exception as e_docx:
                 print(f"ERRO DOCX para {participant_name}: {e_docx}")
                 traceback.print_exc()
@@ -423,11 +428,8 @@ def generate_certificates_api():
     return jsonify({"message": final_message, "zip_file_path": zip_download_path}), 200
 
 @app.route('/download_generated_file/<path:filepath>')
-@require_auth # Este endpoint agora requer autenticação
+@require_auth
 def download_generated_file(filepath):
-    """
-    Permite o download de arquivos gerados, garantindo que o acesso seja restrito à pasta de certificados gerados.
-    """
     print(f"INFO: Pedido de download para: '{filepath}' por '{request.current_user}'.")
 
     full_file_path = os.path.join(app.config['GENERATED_CERTIFICATES_FOLDER'], filepath)
@@ -454,4 +456,5 @@ if __name__ == '__main__':
     print("INFO: Iniciando servidor Flask em http://127.0.0.1:5000 (ou outro host/porta se configurado).")
     print("AVISO: Esta aplicação usa um sistema de autenticação simplificado (username como token e senhas hashed em JSON).")
     print("NÃO use para produção sem implementar autenticação e segurança robustas (ex: JWTs, OAuth2, gerenciamento de sessão adequado).")
-    #app.run(debug=True, host='0.0.0.0', port=5000)#
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
