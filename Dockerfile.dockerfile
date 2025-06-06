@@ -1,37 +1,46 @@
 # Dockerfile
 # Use uma imagem base Python oficial (escolha uma versão de Python que você está usando localmente)
-# Ex: python:3.9-slim-buster ou python:3.10-slim-buster
 FROM python:3.9-slim-buster
 
-# Instala o LibreOffice e dependências necessárias para a conversão de DOCX para PDF.
-# Estas são as dependências do Ubuntu que o docx2pdf precisa.
+# Variáveis de ambiente para ajudar o LibreOffice a funcionar em modo headless
+ENV HOME=/tmp \
+    XDG_CONFIG_HOME=/tmp/.config \
+    XDG_DATA_HOME=/tmp/.local/share \
+    TEMP=/tmp \
+    TMPDIR=/tmp \
+    # Desativa algumas features que podem dar problema em ambientes headless
+    SAL_USE_VCLPLUGIN=gen \
+    NO_LOG_REDIRECT=1
+
+# Instala o LibreOffice, unoconv e outras dependências necessárias para a conversão de DOCX para PDF.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libreoffice \
         libreoffice-writer \
         fonts-crosextra-carlito \
         fonts-crosextra-caladea \
-        # Dependências adicionais que podem ser úteis para docx2pdf ou Flask
         unzip \
         fontconfig \
+        unoconv \
     && rm -rf /var/lib/apt/lists/*
 
-# Define o diretório de trabalho dentro do contêiner Docker
+# Define o diretório de trabalho padrão dentro do contêiner Docker
 WORKDIR /app
 
-# Copia o arquivo requirements.txt e instala as dependências Python
-# Isso aproveita o cache do Docker se as dependências não mudarem
+# Copia o arquivo requirements.txt e instala as dependências Python.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o restante do seu código (incluindo app.py, wsgi.py, templates/, etc.) para o contêiner
+# Copia todo o restante do seu código (incluindo app_backend.py, templates/, etc.) para o contêiner.
 COPY . .
 
-# Define a porta que o aplicativo vai escutar no contêiner.
-# O Render injetará a porta real via variável de ambiente $PORT.
+# PASSO DE DIAGNÓSTICO: Lista o conteúdo do diretório de trabalho após a cópia
+# Mantenha isso temporariamente para depuração se houver problemas de arquivo
+RUN ls -l /app
+
+# Define a variável de ambiente PORT. O Render injetará a porta real em tempo de execução.
 ENV PORT 8000
 EXPOSE $PORT
 
-# Comando para iniciar a aplicação usando Gunicorn.
-# O Render pode sobrescrever isso com o "Start Command" na UI ou render.yaml
-CMD ["gunicorn", "wsgi:application", "--bind", "0.0.0.0:$PORT"]
+# Comando padrão para iniciar a aplicação usando Gunicorn.
+CMD ["gunicorn", "app_backend:app", "--bind", "0.0.0.0:$PORT"]
