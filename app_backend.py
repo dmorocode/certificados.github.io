@@ -16,7 +16,7 @@ import zipfile
 import json
 import hashlib
 from functools import wraps
-import subprocess # Módulo para rodar comandos externos como soffice
+import subprocess # Módulo para rodar comandos externos como pandoc
 
 app = Flask(__name__, template_folder='templates')
 CORS(app,
@@ -315,60 +315,63 @@ def generate_certificates_api():
                 doc.save(output_docx_name)
                 time.sleep(0.1)
 
-                # --- Início do Bloco de Conversão DOCX para PDF (soffice diretamente) ---
+                # --- Início do Bloco de Conversão DOCX para PDF (Pandoc) ---
                 try:
-                    print(f"INFO: Tentando converter {output_docx_name} para {output_pdf_name} usando soffice (LibreOffice).")
+                    print(f"INFO: Tentando converter {output_docx_name} para {output_pdf_name} usando Pandoc.")
 
-                    # Garante que o diretório de saída para o PDF exista antes de chamar soffice
+                    # Garante que o diretório de saída para o PDF exista
                     os.makedirs(os.path.dirname(output_pdf_name), exist_ok=True)
 
-                    # Comando para soffice (LibreOffice)
-                    # Caminho ALTERNATIVO para o executável do soffice, mais provável de funcionar em contêineres.
-                    soffice_command = [
-                        '/usr/lib/libreoffice/program/soffice', # <--- CAMINHO CORRIGIDO AQUI!
-                        '--headless', # Executa sem interface gráfica (essencial para servidores)
-                        '--convert-to', 'pdf:writer_pdf_Export', # Exporta para PDF via Writer
-                        '--outdir', os.path.dirname(output_pdf_name), # Define o diretório de saída
-                        output_docx_name # O arquivo de entrada DOCX
+                    # Comando para Pandoc
+                    # -o: arquivo de saída
+                    # --from docx: formato de entrada é DOCX
+                    # --to pdf: formato de saída é PDF
+                    # --pdf-engine=xelatex: usa xelatex para gerar PDF (melhor para UTF-8)
+                    pandoc_command = [
+                        'pandoc',
+                        output_docx_name,
+                        '-o', output_pdf_name,
+                        '--from', 'docx',
+                        '--to', 'pdf',
+                        '--pdf-engine=xelatex' # xelatex é geralmente melhor para caracteres especiais e fontes
                     ]
-                    print(f"INFO: Comando soffice: {' '.join(soffice_command)}")
+                    print(f"INFO: Comando pandoc: {' '.join(pandoc_command)}")
 
                     result = subprocess.run(
-                        soffice_command,
+                        pandoc_command,
                         check=True, # Lança CalledProcessError se o comando falhar
                         capture_output=True, # Captura stdout e stderr
                         text=True, # Decodifica a saída como texto
-                        timeout=120 # Aumenta o timeout para 120 segundos para conversões mais longas
+                        timeout=180 # Aumenta o timeout para 180 segundos (3 minutos)
                     )
-                    print(f"INFO: soffice STDOUT para {participant_name}: {result.stdout}")
-                    print(f"INFO: soffice STDERR para {participant_name}: {result.stderr}")
+                    print(f"INFO: Pandoc STDOUT para {participant_name}: {result.stdout}")
+                    print(f"INFO: Pandoc STDERR para {participant_name}: {result.stderr}")
 
                     time.sleep(0.05)
                     if os.path.exists(output_pdf_name):
                         pdfs_for_this_column_merger_paths.append(output_pdf_name)
                         print(f"SUCESSO: PDF gerado para {participant_name} em {output_pdf_name}")
                     else:
-                        error_details = f"soffice falhou em criar o PDF em {output_pdf_name}."
+                        error_details = f"Pandoc falhou em criar o PDF em {output_pdf_name}."
                         if result.stdout: error_details += f"\nSTDOUT: {result.stdout}"
                         if result.stderr: error_details += f"\nSTDERR: {result.stderr}"
                         raise Exception(error_details)
 
                 except subprocess.CalledProcessError as sub_error:
-                    error_msg = f"ERRO soffice para {participant_name}: Comando falhou com código {sub_error.returncode}."
+                    error_msg = f"ERRO Pandoc para {participant_name}: Comando falhou com código {sub_error.returncode}."
                     error_msg += f"\nSTDOUT: {sub_error.stdout}"
                     error_msg += f"\nSTDERR: {sub_error.stderr}"
                     print(error_msg)
                     traceback.print_exc()
                     any_processing_errors = True
                 except subprocess.TimeoutExpired:
-                    print(f"ERRO: Conversão de PDF para {participant_name} excedeu o tempo limite de 120 segundos.")
+                    print(f"ERRO: Conversão de PDF para {participant_name} excedeu o tempo limite de 180 segundos (Pandoc).")
                     any_processing_errors = True
                 except Exception as pdf_conversion_error:
-                    # Captura qualquer outro erro que não seja de subprocesso ou timeout
-                    print(f"ERRO geral na conversão PDF para {participant_name}: {pdf_conversion_error}")
+                    print(f"ERRO geral na conversão PDF (Pandoc) para {participant_name}: {pdf_conversion_error}")
                     traceback.print_exc()
                     any_processing_errors = True
-                # --- Fim do Bloco de Conversão DOCX para PDF (soffice diretamente) ---
+                # --- Fim do Bloco de Conversão DOCX para PDF (Pandoc) ---
 
             except Exception as e_docx:
                 print(f"ERRO DOCX para {participant_name}: {e_docx}")
