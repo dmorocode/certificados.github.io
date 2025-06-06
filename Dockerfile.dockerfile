@@ -8,11 +8,11 @@ ENV HOME=/tmp \
     XDG_DATA_HOME=/tmp/.local/share \
     TEMP=/tmp \
     TMPDIR=/tmp \
-    # Desativa algumas features que podem dar problema em ambientes headless
     SAL_USE_VCLPLUGIN=gen \
     NO_LOG_REDIRECT=1
 
-# Instala o LibreOffice, unoconv e outras dependências necessárias para a conversão de DOCX para PDF.
+# Instala o LibreOffice e outras dependências necessárias para a conversão de DOCX para PDF.
+# Adicionadas default-jre (para Java, comum para LibreOffice) e locales (para evitar erros de locale).
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libreoffice \
@@ -21,8 +21,17 @@ RUN apt-get update && \
         fonts-crosextra-caladea \
         unzip \
         fontconfig \
-        unoconv \
+        default-jre \ # Adicionado: Java Runtime Environment
+        locales \     # Adicionado: Para gerar locales e evitar erros de ambiente
     && rm -rf /var/lib/apt/lists/*
+
+# Configura o locale para evitar warnings e erros
+RUN locale-gen en_US.UTF-8 && \
+    update-locale LANG=en_US.UTF-8
+
+# PASSO DE DIAGNÓSTICO: Tenta encontrar o executável 'soffice'
+# Isso vai imprimir o caminho nos logs de build do Render.
+RUN which soffice || find /usr -name "soffice" || echo "soffice not found in common paths"
 
 # Define o diretório de trabalho padrão dentro do contêiner Docker
 WORKDIR /app
@@ -35,7 +44,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # PASSO DE DIAGNÓSTICO: Lista o conteúdo do diretório de trabalho após a cópia
-# Mantenha isso temporariamente para depuração se houver problemas de arquivo
 RUN ls -l /app
 
 # Define a variável de ambiente PORT. O Render injetará a porta real em tempo de execução.
