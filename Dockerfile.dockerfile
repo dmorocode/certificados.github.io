@@ -11,28 +11,28 @@ ENV HOME=/tmp \
     SAL_USE_VCLPLUGIN=gen \
     NO_LOG_REDIRECT=1
 
-# Instala Pandoc e um ambiente LaTeX mais completo para garantir 'xelatex'.
-# Vamos tentar 'texlive-full' primeiro para garantir todas as dependências, mas esteja ciente que é GRANDE.
-# Se 'texlive-full' resultar em uma imagem muito grande ou tempo de build excessivo,
-# a alternativa seria: texlive-latex-extra texlive-fonts-extra texlive-pictures
-# e verificar dependências como imagemagick, ghostscript, poppler-utils
+# Instala Pandoc e um ambiente LaTeX mais específico para garantir 'xelatex'.
+# Estes pacotes são comumente necessários para o Pandoc usar xelatex.
+# 'texlive-xetex': O motor XeLaTeX em si.
+# 'texlive-latex-base': Pacotes LaTeX fundamentais.
+# 'texlive-latex-extra': Muitos pacotes LaTeX adicionais (comum para documentos complexos).
+# 'texlive-fonts-recommended': Fontes comuns.
+# 'texlive-binaries': Pode ser necessário para garantir que os executáveis estejam no PATH.
+# 'fontconfig': Para o sistema de fontes.
+# 'libxtst6', 'libxrender1': Dependências X para ambientes headless.
+# 'locales': Para evitar erros de ambiente/encoding.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         pandoc \
-        # Opção 1: Texlive-full (Garanti o xelatex, mas é muito grande)
-        texlive-full \
-        # --- OU ---
-        # Opção 2: Pacotes mais específicos (se texlive-full for um problema)
-        # texlive-xetex \
-        # texlive-fonts-recommended \
-        # texlive-latex-extra \
-        # texlive-fonts-extra \
-        # gsfonts \ # Common PostScript fonts
-        # fontconfig \ # Já tinha, mas é importante
-        # libxtst6 \
-        # libxrender1 \
+        texlive-xetex \
+        texlive-latex-base \
+        texlive-latex-extra \
+        texlive-fonts-recommended \
+        texlive-binaries \
+        fontconfig \
+        libxtst6 \
+        libxrender1 \
         unzip \
-        # fontconfig \ # Já incluído em outras instalações
         locales \
     && rm -rf /var/lib/apt/lists/*
 
@@ -43,7 +43,6 @@ RUN locale-gen en_US.UTF-8 && \
 # PASSO DE DIAGNÓSTICO: Tenta encontrar o executável 'pandoc' e 'xelatex'
 RUN which pandoc || echo "pandoc not found in path"
 RUN which xelatex || echo "xelatex not found in path"
-# RUN find /usr -name "pandoc" || echo "pandoc not found in /usr" # Opcional, para depuração mais profunda
 
 # Define o diretório de trabalho padrão dentro do contêiner Docker
 WORKDIR /app
